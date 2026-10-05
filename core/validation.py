@@ -60,13 +60,36 @@ def uses_tls(port: int, service: str | Mapping[str, Any]) -> bool:
     tunnel = service.get("tunnel", "") if isinstance(service, Mapping) else ""
     return port in {443, 8443} or "https" in name or name.startswith("ssl/") or tunnel == "ssl"
 
+def is_web_service(info: dict) -> bool:
+    port = int(info.get("port", 0))
+    service = str(info.get("service", "")).lower()
 
-def is_web_service(port: int, service: str | Mapping[str, Any]) -> bool:
-    name = service_name(service)
-    if "http" in name:
+    web_ports = {
+        80,
+        443,
+        3000,
+        5000,
+        8000,
+        8080,
+        8443,
+    }
+
+    web_services = (
+        "http",
+        "https",
+        "web",
+        "apache",
+        "nginx",
+        "iis",
+    )
+
+    if port in web_ports:
         return True
-    return name in {"", "unknown", "desconhecido", "ssl"} and port in {80, 443, 8080, 8443}
 
+    return any(
+        name in service
+        for name in web_services
+    )
 
 def build_web_url(target: str, port: int, service: str | Mapping[str, Any] = "") -> str:
     host = validate_target(target)
