@@ -38,7 +38,7 @@ def test_dependency_menu_and_exit_without_optional_tools(cli_inputs, monkeypatch
         lambda: [
             ("Python", True, "3.13"),
             ("Nikto", False, "não encontrado"),
-            ("ZAP Baseline", False, "não encontrado"),
+            ("ZAP Automation Framework", False, "não encontrado"),
         ],
     )
     cli.main()
@@ -173,3 +173,101 @@ def test_windows_legacy_output_encoding_is_configured(monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda prompt="": "5")
     cli.main()
     stream.reconfigure.assert_called_once_with(encoding="utf-8", errors="replace")
+
+
+def test_web_scanner_preserves_url_and_saves_nuclei_findings(cli_inputs, monkeypatch, tmp_path):
+    url = "https://example.test:8443/app/path?mode=1"
+    cli_inputs([url, "s", "1"])
+    result = {
+        "status": "concluído",
+        "address": "192.0.2.1",
+        "tools": [{"tool": "Nuclei", "status": "concluído"}],
+        "nuclei_findings": [{"template_id": "http-missing-security-headers"}],
+        "nuclei_severity_counts": {"High": 1},
+    }
+    runner = Mock(return_value=result)
+    saved = {}
+    monkeypatch.setattr(cli, "run_web_scan", runner)
+    monkeypatch.setattr(cli, "load_config", lambda: {"nuclei": {"enabled": True}})
+    monkeypatch.setattr(
+        cli,
+        "save_report",
+        lambda report, fmt: saved.update(report=report, format=fmt) or tmp_path / "report.json",
+    )
+    cli.start_web_scanner()
+    runner.assert_called_once()
+    assert runner.call_args.args[0] == url
+    assert saved["report"]["target"] == "example.test"
+    assert saved["report"]["web_target"] == url
+    assert saved["report"]["nuclei_findings"] == result["nuclei_findings"]
+    assert saved["format"] == "json"
+
+
+def test_web_scanner_requires_authorization_before_network(cli_inputs, monkeypatch):
+    cli_inputs(["https://example.test", "n"])
+    runner = Mock()
+    monkeypatch.setattr(cli, "run_web_scan", runner)
+    assert cli.start_web_scanner() is False
+    runner.assert_not_called()
+
+
+def test_controlled_load_test_requires_confirmation_and_saves_reports(cli_inputs, monkeypatch):
+    url = "https://example.test/health"
+    cli_inputs([url, "s", "3"])
+    runner = Mock(return_value={
+        "tool": "Teste HTTP controlado", "status": "conclu\u00eddo", "target": url,
+        "hostname": "example.test", "started_at": "start", "finished_at": "end",
+        "duration_limit_seconds": 3, "rate_limit_per_second": 1, "request_limit": 3,
+        "requests_sent": 3, "http_status_counts": {"200": 3},
+        "average_latency_ms": 1.0, "errors": {}, "message": "limited",
+    })
+    saved = []
+    monkeypatch.setattr(cli, "run_controlled_http_test", runner)
+    monkeypatch.setattr(cli, "save_report", lambda report, fmt: saved.append((report, fmt)) or fmt)
+    cli.start_controlled_load_test()
+    runner.assert_called_once_with(url, authorized=True, duration=3)
+    assert [fmt for _, fmt in saved] == ["txt", "json"]
+    assert saved[0][0]["tools"][0]["requests_sent"] == 3
+
+
+def test_controlled_load_test_refusal_sends_no_requests(cli_inputs, monkeypatch):
+    cli_inputs(["https://example.test/", "n"])
+    runner = Mock()
+    monkeypatch.setattr(cli, "run_controlled_http_test", runner)
+    cli.start_controlled_load_test()
+    runner.assert_not_called()
+
+
+def test_nuclei_template_update_requires_yes_in_configuration_menu(cli_inputs, monkeypatch):
+    cli_inputs(["7", "n", "8"])
+    settings = {
+        "enabled": True,
+        "executable_path": "",
+        "templates_directory": "",
+        "timeout": 600,
+        "rate_limit": 2,
+        "concurrency": 2,
+    }
+    monkeypatch.setattr(cli, "load_config", lambda: {"nuclei": settings})
+    update = Mock()
+    monkeypatch.setattr(cli, "update_nuclei_templates", update)
+    cli.nuclei_settings_menu()
+    update.assert_not_called()
+
+
+def test_nuclei_template_update_runs_only_after_confirmation(cli_inputs, monkeypatch):
+    cli_inputs(["7", "s", "8"])
+    settings = {
+        "enabled": True,
+        "executable_path": "",
+        "templates_directory": "",
+        "timeout": 600,
+        "rate_limit": 2,
+        "concurrency": 2,
+    }
+    monkeypatch.setattr(cli, "load_config", lambda: {"nuclei": settings})
+    update = Mock(return_value={"status": "concluído", "message": "updated"})
+    monkeypatch.setattr(cli, "update_nuclei_templates", update)
+    cli.nuclei_settings_menu()
+    update.assert_called_once()
+    assert update.call_args.kwargs["confirm"] is True

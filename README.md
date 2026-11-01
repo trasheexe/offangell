@@ -1,6 +1,6 @@
 # OFF ANGELL
 
-Ferramenta educacional e defensiva em Python para descoberta de portas TCP e análise de serviços com Nmap, coleta de banners, NSE, Nikto e ZAP Baseline. Interface de terminal em português, com o banner e as cores originais do projeto.
+Ferramenta educacional e defensiva em Python para descoberta de portas TCP e análise de serviços com Nmap, coleta de banners, NSE, Nikto e ZAP Automation Framework. Interface de terminal em português, com o banner e as cores originais do projeto.
 
 Desenvolvida para máquinas próprias, laboratórios, CTFs e sistemas com autorização explícita. As análises NSE, Nikto e ZAP dependem de uma escolha no menu da porta; abrir o programa não inicia nenhuma varredura.
 
@@ -17,6 +17,10 @@ Scanner defensivo para ambientes próprios ou autorizados.
 [3] Visualizar relatórios
 [4] Ajuda
 [5] Sair
+[6] Scan de segurança web (URL)
+[7] Configurações do Nuclei
+[8] Website Security Scanner
+[9] Teste de carga HTTP controlado
 ```
 
 Exemplo ilustrativo após uma varredura:
@@ -43,6 +47,8 @@ Digite o **índice entre colchetes**: `2` seleciona a porta `443` nesse exemplo.
 - Banner HTTP por `HEAD /`; HTTPS com TLS e validação de certificado; leitura passiva nos demais serviços.
 - Localização das ferramentas no `PATH` e em caminhos conhecidos de Windows/Linux.
 - Verificação de dependências sem iniciar scanners.
+- Scan web explícito com URL completa, preservando esquema, porta e caminho.
+- Integração opcional com Nuclei usando uma allowlist local de templates conservadores.
 - Relatórios locais TXT/JSON e leitura pelo menu principal.
 - Tratamento de dependências ausentes, DNS, permissões, timeout e cancelamento.
 
@@ -55,10 +61,12 @@ Digite o **índice entre colchetes**: `2` seleciona a porta `443` nesse exemplo.
 | `python-nmap` | Interpretar os resultados XML do Nmap |
 | `colorama` | Cores e compatibilidade do terminal; há fallback sem cores |
 | Nikto e, para scripts `.pl`, Perl | Integração web opcional |
-| `zap-baseline.py` e seu ambiente ZAP completo | Integração web opcional |
+| ZAP Desktop, Automation Framework e Java | Integracao web opcional |
+| Nuclei para Windows e templates oficiais | Verificações web por templates YAML, opcional |
+| `PyYAML` | Inspeção segura dos templates antes da execução |
 | `pytest` | Apenas desenvolvimento e testes |
 
-`requirements.txt` contém apenas `python-nmap` e `colorama`. Os executáveis externos são instalados separadamente. A ausência de Nikto/ZAP não impede o scanner; mesmo sem Nmap, os menus de ajuda, dependências e relatórios continuam disponíveis.
+`requirements.txt` instala `python-nmap`, `colorama` e PyYAML. Os executáveis externos são instalados separadamente. A ausência de Nikto/ZAP/Nuclei não impede os demais fluxos; mesmo sem Nmap, os menus de ajuda, dependências e relatórios continuam disponíveis. PyYAML lê os templates selecionados sem executar conteúdo YAML.
 
 ## Instalação
 
@@ -88,6 +96,28 @@ C:\Program Files\Nmap\nmap.exe
 C:\Program Files (x86)\Nmap\nmap.exe
 ```
 
+### Caminhos centralizados das ferramentas
+
+No Windows, o OFF ANGELL procura primeiro os caminhos salvos em `%USERPROFILE%\.offangell\settings.json`, depois nomes conhecidos em `C:\Tools` (busca recursiva limitada a cinco níveis), instalações conhecidas e por último o `PATH`. Os caminhos personalizados ficam no objeto `tools`, por exemplo:
+
+```json
+{
+  "tools": {
+    "nmap": "C:\\Tools\\Nmap\\nmap.exe",
+    "nuclei": "C:\\Tools\\Nuclei\\nuclei.exe",
+    "zap": "C:\\Tools\\ZAP\\Zed Attack Proxy\\ZAP.exe",
+    "zap_launcher": "C:\\Tools\\ZAP\\Zed Attack Proxy\\zap.bat",
+    "nikto": "C:\\Tools\\nikto-2.6.1\\program\\nikto.pl",
+    "java": "",
+    "perl": "",
+    "powershell": "",
+    "metasploit": ""
+  }
+}
+```
+
+O diagnostico informa os caminhos encontrados para ZAP Desktop e ZAP Automation Framework separadamente. A instalacao nao exige `zap-baseline.py`. Nikto em `.pl` requer Perl; quando o script existe sem Perl, o terminal mostra um aviso e os outros scanners continuam.
+
 ### Linux
 
 Instale Python, suporte a `venv`/`pip` e Nmap pelo gerenciador da distribuição ou pelo [instalador oficial do Nmap](https://nmap.org/download.html). Na pasta do projeto:
@@ -102,6 +132,24 @@ O Nmap também é procurado em `/usr/bin/nmap` e `/usr/local/bin/nmap`.
 
 Nas próximas execuções, repita apenas o último comando do seu sistema. Se uma ferramenta estiver em outro diretório, inclua-o no `PATH` ou ajuste as constantes de caminhos em `core/tools.py`.
 
+### Nuclei — opcional
+
+Baixe o binário Windows na [página oficial de releases do Nuclei](https://github.com/projectdiscovery/nuclei/releases), extraia `nuclei.exe` e adicione sua pasta ao `PATH`. Também é possível abrir **Configurações do Nuclei** no menu `[7]` e informar o caminho completo do executável. O [guia oficial de instalação](https://docs.projectdiscovery.io/opensource/nuclei/install) recomenda baixar o binário correspondente ao sistema e extraí-lo.
+
+Confirme a instalação no PowerShell:
+
+```powershell
+nuclei.exe -version
+```
+
+Como alternativa, instale via Go (Go atualizado é necessário):
+
+```powershell
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+```
+
+O Nuclei não baixa nem atualiza templates durante um scan. Se os templates não estiverem instalados, use **Configurações do Nuclei → Atualizar templates manualmente** e confirme a ação. O comando oficial é `nuclei -update-templates`; para um diretório personalizado, o OFF ANGELL usa `-update-template-dir`. Confira os caminhos `-update-templates` e de armazenamento na [documentação oficial](https://docs.projectdiscovery.io/opensource/nuclei/running).
+
 ## Como usar
 
 1. No menu principal, escolha **Verificar dependências** para conferir a instalação.
@@ -110,6 +158,10 @@ Nas próximas execuções, repita apenas o último comando do seu sistema. Se um
 4. Aguarde o resultado e selecione o índice da porta desejada.
 5. Escolha explicitamente a análise no menu da porta.
 6. Salve o relatório antes de deixar a sessão: opção `6` no menu da porta ou `r` na lista de portas.
+
+Para verificar um site, escolha **Website Security Scanner** (`[8]`) e informe um único endereço `http://` ou `https://`. Confirme que possui autorização antes de iniciar. O caminho e a porta informados são mantidos no alvo. DNS/conectividade são verificados antes das ferramentas; somente a porta especificada (ou a padrão do protocolo) é consultada. Um redirecionamento para outro hostname ou porta bloqueia os scanners. A ação consulta informações HTTP, executa OWASP ZAP Automation Framework, Nikto e Nuclei quando habilitado/instalado e gera relatórios TXT e JSON automaticamente. O Nuclei recebe a URL original e não segue redirecionamentos.
+
+A opcao `[9]` faz um teste de disponibilidade HTTP controlado no URL autorizado. Ela envia somente requisicoes `HEAD`, uma por segundo, em sequencia; permite duracao de 1 a 30 segundos, limita o total a 30 requisicoes, nao segue redirecionamentos e exige confirmacao antes de enviar. Registra codigos HTTP, erros e latencia media em relatorios TXT e JSON. Nao e um DDoS nem confirma vulnerabilidades.
 
 Não são aceitos URLs completos, credenciais, portas anexadas ao hostname, redes CIDR, listas de alvos, curingas, opções de linha de comando ou caracteres de controle. IPv6 deve ser informado sem colchetes e sem identificador de interface (`%`). Um hostname com vários endereços usa apenas um endereço para o Nmap, preferindo IPv4; o endereço analisado aparece na tela e no relatório.
 
@@ -122,7 +174,7 @@ Serviço: https
 [2] Banner
 [3] Análise NSE
 [4] Nikto
-[5] ZAP Baseline
+[5] ZAP Automation Framework
 [6] Salvar relatório
 [7] Voltar
 [8] Sair
@@ -140,7 +192,8 @@ As opções Nikto/ZAP só são liberadas para serviços identificados como web. 
 | Banner | Envia uma requisição HTTP HEAD em serviços web; nos demais, aguarda dados sem enviar comandos |
 | NSE | Executa a seleção defensiva de scripts na porta escolhida e apresenta os resultados como indícios |
 | Nikto | Verifica configuração e identificação de software web, com perfil limitado |
-| ZAP Baseline | Navega pelo serviço web e aplica análise passiva às respostas; não executa active scan |
+| ZAP Automation Framework | Executa spider, aguarda passive scan e exporta alertas; nao executa active scan |
+| Nuclei | Executa somente templates HTTP revisados e allowlisted; não faz fuzzing, brute force, DoS, OAST, headless ou testes por protocolo de arquivo |
 
 ### NSE
 
@@ -154,17 +207,33 @@ Isso restringe a antiga seleção ampla `vuln`. Os [critérios das categorias s�
 
 ### Nikto — opcional
 
-Instale o [Nikto oficial](https://github.com/sullo/nikto). A busca usa `NIKTO_PATHS`, incluindo caminhos comuns de instalação e `nikto.pl`. Scripts Perl são chamados com um interpretador localizado por `PERL_PATHS`, incluindo Strawberry Perl no Windows.
+Instale o [Nikto oficial](https://github.com/sullo/nikto). A busca usa `NIKTO_PATHS`, incluindo caminhos comuns de instalacao e `nikto.pl`. Scripts Perl usam um interpretador encontrado por `PERL_PATHS`, incluindo Strawberry Perl no Windows. Configure `PERL_PATH`, `NIKTO_PATH`, `NIKTO_TIMEOUT` e `NIKTO_ENABLED` em `.env` ou no ambiente do processo. Para diagnostico de modulos/TLS e testes locais em `127.0.0.1`, consulte [docs/NIKTO_SETUP.md](docs/NIKTO_SETUP.md) e execute `python tools/setup_nikto.py`.
 
 A chamada usa uma lista de argumentos, URL HTTP/HTTPS, `-Tuning 2b`, `-Plugins headers;tests` e `-nointeractive`. O perfil limita os testes a configuração/arquivos padrão e identificação de software, conforme a [documentação de tuning](https://github.com/sullo/nikto/wiki/Scan-Tuning) e de [seleção de plugins](https://github.com/sullo/nikto/wiki/Selecting-Plugins).
 
-### ZAP Baseline — opcional
+### OWASP ZAP Automation Framework - opcional
 
-A integração procura especificamente `zap-baseline.py` em `ZAP_PATHS`. O aplicativo gráfico `zap`, `zap.sh` ou `zap.bat` não substitui esse script. A [documentação do Baseline](https://www.zaproxy.org/docs/docker/baseline-scan/) descreve o ambiente de execução e as imagens oficiais que o incluem.
+A integracao usa o ZAP Desktop instalado e localiza `zap.bat` (Windows) ou `zap.sh` (Linux/macOS) junto a aplicacao. No Windows chama esse script com `-cmd -autorun <plano.yaml>`; nunca passa argumentos diretamente a `ZAP.exe`. Sem script de inicializacao, procura um JAR de inicializacao e o executa com Java. `zap-baseline.py` nao e necessario.
 
-O script é chamado com o Python que executa o OFF ANGELL. Portanto, seus módulos de suporte, como `zap_common.py`, e suas dependências precisam estar disponíveis nesse ambiente. Antes da análise, o programa executa somente `-h`, com limite de 10 segundos, para detectar uma instalação incompleta sem acessar o alvo.
+Cada execucao cria um diretorio temporario separado e um plano YAML com a URL autorizada. O plano executa Spider, aguarda passive scan, exporta relatorio JSON e encerra o ZAP. Active Scan nao e habilitado. `stdout` e `stderr` sao capturados, limitados e sanitizados. Os codigos oficiais sao 0 (sem erros/warnings), 1 (erros) e 2 (warnings); os codigos ficam no resultado para revisao.
 
-A análise recebe `-t <URL> -m 1 -T 5`: um minuto de navegação e limites próprios do Baseline para inicialização/análise passiva. Os códigos `1` e `2` seguem a convenção de alertas do Baseline; revise a saída para interpretar os resultados. O OFF ANGELL não instala o ZAP, baixa imagens nem oferece execução Docker própria. Instalações standalone do script podem depender de Docker conforme a distribuição do ZAP; prepare esse ambiente separadamente.
+O relatorio JSON e convertido em alertas marcados como indicios, sujeitos a validacao manual. O diretorio temporario e removido ao final. O diagnostico mostra separadamente ZAP e a disponibilidade do mecanismo de automacao/Java.
+
+Redirecionamentos de resposta para outro hostname ou porta são bloqueados na verificação inicial e impedem que os scanners iniciem. Os relatórios filtram cookies e campos comuns de segredo, mas devem ser revisados antes de compartilhar.
+
+### Nuclei — opcional
+
+O Nuclei é um scanner que usa templates YAML para procurar vulnerabilidades conhecidas e configurações expostas. No OFF ANGELL, ele complementa ZAP e Nikto; não substitui essas ferramentas. A documentação do projeto descreve essa abordagem baseada em templates [na visão geral oficial](https://docs.projectdiscovery.io/opensource/nuclei/overview).
+
+O perfil padrão permite apenas os IDs `http-missing-security-headers` e `tech-detect`. Antes de cada execução, o OFF ANGELL abre os arquivos YAML com PyYAML, exige exatamente uma requisição HTTP `GET` ou `HEAD` para `{{BaseURL}}`, rejeita chaves de protocolos ou recursos ativos não permitidos e exige IDs únicos dentro do diretório. Tags e exclusões adicionais são aplicadas como defesa em profundidade. A assinatura dos templates também é verificada pelo Nuclei com `-disable-unsigned-templates`; se nenhum template permitido assinado estiver disponível, o scan será marcado como indisponível.
+
+O comando é criado com `-rate-limit 2 -concurrency 2 -bulk-size 1 -timeout 8 -retries 1 -max-host-error 5 -no-interactsh -disable-unsigned-templates -disable-redirects -omit-raw`. A ajuda (`nuclei -h`) da versão instalada é conferida antes do scan; se faltar uma opção necessária, o OFF ANGELL não executa o comando. A saída JSONL é lida linha por linha. Request e response não são gravados. `-as`, workflows, templates headless, file, código, fuzzing e módulos de força bruta/DoS não são habilitados.
+
+O menu `[7] Configurações do Nuclei` permite ativar/desativar a ferramenta, configurar executável, pasta de templates, timeout global (até 600 s), limite (até 5 requisições/s) e concorrência (até 2). O arquivo é salvo em `%USERPROFILE%\\.offangell\\settings.json`. Atualizações exigem ação separada e confirmação; scans não atualizam templates automaticamente.
+
+Os achados aparecem na seção `nuclei_findings` dos relatórios TXT/JSON e são mantidos separados dos estados de ZAP/Nikto, para revisão e correlação manual. Severidade é a classificação do template e indica um possível problema; não prova exploração. `extracted_results` pode conter conteúdo de resposta e é filtrado para valores sensíveis comuns. Templates são mantidos pela comunidade e podem ter falsos positivos, falsos negativos, mudança de cobertura ou assinatura ausente. O diretório configurado só fornece arquivos à allowlist; ele não pode adicionar templates arbitrários ao perfil padrão.
+
+O repositório não inclui um runner Metasploit. Nenhum módulo Metasploit é iniciado pelo fluxo web; uma futura integração deve limitar-se a módulos auxiliares previamente revisados.
 
 ## Relatórios
 
@@ -174,9 +243,9 @@ Os relatórios são salvos em `reports/`, relativo à pasta do projeto, com nome
 reports/scan_127.0.0.1_2026-10-05_182000_123456_a1b2c3d4.json
 ```
 
-TXT e JSON registram data/hora com fuso do sistema, alvo, endereço analisado, modo, estado da varredura, portas, produtos/versões, banners, resultados NSE e execuções opcionais. JSON inclui também metadados estruturados de início, conclusão e salvamento quando disponíveis. Falhas e cancelamentos podem ser salvos.
+TXT e JSON registram data/hora com fuso do sistema, alvo, URL web original quando utilizada, endereço analisado, modo, estado da varredura, portas, produtos/versões, banners, resultados NSE, achados Nuclei e estados das ferramentas opcionais. JSON inclui também metadados estruturados de início, conclusão e salvamento quando disponíveis. Falhas e cancelamentos podem ser salvos.
 
-O programa remove caracteres de controle e mascara campos comuns de senha, token, autenticação e cookies. A saída completa de Nikto/ZAP aparece no terminal e não é armazenada: o relatório guarda ferramenta, porta, URL quando disponível, estado e código de saída. Revise os relatórios antes de compartilhá-los; a filtragem não identifica todo possível dado sensível de um serviço.
+O programa remove caracteres de controle e mascara campos comuns de senha, token, autenticação e cookies. A saída de Nikto/ZAP é limitada a 64 KiB, sanitizada e registrada no relatório; o JSON completo do ZAP usado para extrair alertas fica temporário e é removido após a execução. Revise relatórios antes de compartilhá-los; a filtragem não identifica todo possível dado sensível de um serviço.
 
 Os relatórios locais são ignorados pelo Git, exceto `reports/.gitkeep`. O limite por arquivo é de 2 MB. A opção **Visualizar relatórios** lista e abre os TXT/JSON salvos.
 
@@ -199,7 +268,10 @@ Os relatórios locais são ignorados pelo Git, exceto `reports/.gitkeep`. O limi
 | Timeout | Confira o serviço ou utilize um intervalo menor de portas |
 | Permissão insuficiente | Confira permissões de execução, acesso a `reports/` e a instalação do Npcap no Windows |
 | Nikto ausente | Instale Nikto; scripts `.pl` também precisam de Perl |
-| ZAP Baseline ausente/incompleto | Configure o script, seus módulos e o ambiente ZAP; as demais funções continuam disponíveis |
+| ZAP Automation Framework indisponivel | Confira `zap.bat`/`zap.sh`, o JAR de inicializacao e Java; as demais ferramentas continuam disponiveis |
+| Nuclei ausente/incompatível | Instale o binário oficial, configure o caminho e use uma versão com as opções do perfil seguro |
+| Templates Nuclei ausentes | Use a atualização manual em Configurações do Nuclei e confirme a ação |
+| Nenhum template permitido | Verifique a versão/assinatura e se o diretório tem os IDs da allowlist do OFF ANGELL |
 | Certificado TLS inválido | Configure a CA do laboratório e use um hostname correspondente ao certificado |
 
 ## Estrutura
@@ -211,6 +283,9 @@ offangell/
 │   ├── __init__.py
 │   ├── scanner.py           # Nmap, NSE, DNS e banners
 │   ├── tools.py             # Dependências, Nikto, ZAP e subprocessos
+│   ├── nuclei.py            # Política, execução, JSONL e templates Nuclei
+│   ├── web.py               # Fluxo por URL para ZAP, Nikto e Nuclei
+│   ├── config.py            # Configurações locais do Nuclei
 │   ├── validation.py        # Alvos, portas e URLs
 │   └── reports.py           # Relatórios e filtragem de campos sensíveis
 ├── tests/                   # Testes isolados com mocks
@@ -240,6 +315,6 @@ offangell/
 ./.venv/bin/python -m pytest -q
 ```
 
-Os testes usam mocks para Nmap, DNS, sockets e subprocessos. Uma fixture bloqueia as chamadas reais de rede/processos usadas pela aplicação; não é necessário instalar Nmap, Nikto ou ZAP para executar a suíte. Ela cobre validação, URLs, localização de ferramentas, relatórios, TLS, tratamento de erros, cancelamento e menus.
+Os testes usam mocks para Nmap, DNS, sockets e subprocessos. Uma fixture bloqueia as chamadas reais de rede/processos usadas pela aplicação; não é necessário instalar Nmap, Nikto, ZAP ou Nuclei para executar a suíte. Ela cobre validação de URLs, localização de ferramentas, política e inspeção YAML, JSONL válido/inválido, timeouts, atualizações confirmadas, relatórios, TLS, tratamento de erros e menus.
 
 O workflow do GitHub Actions está configurado para Windows e Linux com Python 3.10 e 3.13. Nenhum scanner é executado pelo CI.

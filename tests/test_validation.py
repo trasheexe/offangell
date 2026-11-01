@@ -3,8 +3,10 @@ import pytest
 from core.validation import (
     build_web_url,
     is_web_service,
+    parse_web_target,
     validate_ports,
     validate_target,
+    validate_web_url,
 )
 
 
@@ -145,3 +147,49 @@ def test_known_non_web_service_does_not_receive_http_request():
     assert not is_web_service(443, "ssh")
     assert is_web_service(443, "desconhecido")
     assert is_web_service(9000, "http")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.test:8443/app?x=1",
+        "http://127.0.0.1/",
+        "https://[::1]:9443/path",
+    ],
+)
+def test_valid_web_url_is_preserved(url):
+    assert validate_web_url(url) == url
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("http://example.test", ("example.test", None, 80, "http", "/")),
+        ("https://example.test/login", ("example.test", None, 443, "https", "/login")),
+        ("https://example.test:8443/a", ("example.test", None, 8443, "https", "/a")),
+        ("http://192.168.1.10", ("192.168.1.10", "192.168.1.10", 80, "http", "/")),
+        ("https://[2001:db8::1]:8443", ("2001:db8::1", "2001:db8::1", 8443, "https", "/")),
+    ],
+)
+def test_parse_web_target_fields(url, expected):
+    parsed = parse_web_target(url)
+    assert (parsed["hostname"], parsed["ip"], parsed["port"], parsed["protocol"], parsed["path"]) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "ftp://example.test/file",
+        "https://user:password@example.test/",
+        "https://example.test/#fragment",
+        "https://example.test:65536/",
+        "https://example.test:/",
+        "https://-example.test/",
+        "https://example.test/path with spaces",
+        "https://example.test/\n-u",
+    ],
+)
+def test_invalid_web_urls_are_rejected(url):
+    with pytest.raises(ValueError):
+        validate_web_url(url)

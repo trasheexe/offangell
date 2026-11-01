@@ -24,7 +24,7 @@ def example_report():
         {"banner": "HTTP/1.1 200 OK\r\nSet-Cookie: secret-cookie\r\nServer: nginx"}
     )
     report["nse"].append({"scripts": {"test": "Possível problema; token=secret-value"}})
-    report["tools"].append({"tool": "ZAP Baseline", "status": "alertas", "returncode": 2})
+    report["tools"].append({"tool": "ZAP Automation Framework", "status": "alertas", "returncode": 2})
     return report
 
 
@@ -35,7 +35,7 @@ def test_save_and_read_report(tmp_path, format_name):
     content = reports.read_report(path, tmp_path / "reports")
     assert path.name.startswith("scan___1_")
     assert path.suffix == "." + format_name
-    assert "OFF ANGELL" in content and "nginx" in content and "ZAP Baseline" in content
+    assert "OFF ANGELL" in content and "nginx" in content and "ZAP Automation Framework" in content
     assert "secret-cookie" not in content and "secret-value" not in content
     assert "secret-cookie" in report["banners"][0]["banner"]  # exportação não altera a sessão
     if format_name == "json":
@@ -89,3 +89,37 @@ def test_save_permission_error_is_propagated(tmp_path, monkeypatch):
     monkeypatch.setattr(reports.Path, "mkdir", denied)
     with pytest.raises(PermissionError):
         reports.save_report(example_report(), "txt", tmp_path)
+
+
+@pytest.mark.parametrize("format_name", ["txt", "json"])
+def test_nuclei_findings_are_reported_without_raw_traffic(tmp_path, format_name):
+    report = example_report()
+    report["web_target"] = "https://example.test/app?token=secret"
+    report["nuclei_findings"].append(
+        {
+            "tool": "Nuclei",
+            "template_id": "http-missing-security-headers",
+            "template_name": "HTTP Missing Security Headers",
+            "matched_at": "https://example.test/app?token=secret",
+            "severity": "Informational",
+            "tags": ["misconfig", "headers"],
+            "description": "Potential issue token=secret",
+            "extracted_results": ["api_key=secret"],
+            "reference": ["https://example.test/advisory"],
+            "timestamp": reports.now_iso(),
+            "status": "indício; requer validação manual",
+        }
+    )
+    path = reports.save_report(report, format_name, tmp_path)
+    content = reports.read_report(path, tmp_path)
+    assert "HTTP Missing Security Headers" in content
+    assert "secret" not in content
+    assert "Authorization: Bearer" not in content and "Set-Cookie: secret" not in content
+    if format_name == "json":
+        data = json.loads(content)
+        assert data["nuclei_findings"][0]["template_id"] == "http-missing-security-headers"
+        assert data["web_target"] == "https://example.test/app?token=[REMOVIDO]"
+        assert "request" not in data["nuclei_findings"][0]
+        assert "response" not in data["nuclei_findings"][0]
+    else:
+        assert "URL web: https://example.test/app?token=[REMOVIDO]" in content

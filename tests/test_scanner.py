@@ -155,7 +155,7 @@ def test_dns_uses_only_one_address_and_supports_ipv6(monkeypatch):
 
 
 def test_missing_nmap(monkeypatch):
-    monkeypatch.setattr(scanner, "find_executable", lambda paths: None)
+    monkeypatch.setattr(scanner, "find_tool_executable", lambda *args, **kwargs: None)
     with pytest.raises(scanner.ScanError, match="Nmap não foi encontrado"):
         scanner.create_scanner()
 
@@ -260,7 +260,7 @@ def test_real_python_nmap_parser_preserves_tls_on_custom_port(monkeypatch):
     scan_process.poll.return_value = 0
     popen = Mock(side_effect=[version_process, scan_process])
     monkeypatch.setattr(scanner.subprocess, "Popen", popen)
-    monkeypatch.setattr(scanner, "find_executable", lambda paths: "/mock/nmap")
+    monkeypatch.setattr(scanner, "find_tool_executable", lambda *args, **kwargs: "/mock/nmap")
     result = scanner.scan_ports("127.0.0.1", "9443")
     service = result["open_ports"][0]
     assert service["tunnel"] == "ssl"

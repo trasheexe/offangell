@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from typing import Any
 
 from core.reports import clean_text, now_iso
-from core.tools import NMAP_PATHS, find_executable, process_options, stop_process
+from core.tools import find_tool_executable, process_options, stop_process
 from core.validation import (
     build_web_url,
     is_web_service,
@@ -53,7 +53,7 @@ def create_scanner() -> tuple[Any, str]:
         raise ScanError(
             "python-nmap ausente. Instale as dependências de requirements.txt."
         ) from exc
-    path = find_executable(NMAP_PATHS)
+    path = find_tool_executable("nmap")
     if not path:
         raise ScanError("Nmap não foi encontrado. Instale-o ou ajuste NMAP_PATHS em core/tools.py.")
     try:

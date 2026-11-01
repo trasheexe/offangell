@@ -63,10 +63,20 @@ def new_report(target: str, mode: str, ports: str | None) -> dict:
         "mode": mode,
         "requested_ports": ports,
         "status": "iniciado",
+        "execution_status": "pending",
         "open_ports": [],
         "banners": [],
         "nse": [],
         "tools": [],
+        "web_target": None,
+        "web_metadata": None,
+        "vulnerabilities": [],
+        "nuclei_findings": [],
+        "consolidated_findings": [],
+        "confirmed_findings": [],
+        "unconfirmed_findings": [],
+        "operational_errors": [],
+        "recommendations": [],
     }
 
 
@@ -76,6 +86,8 @@ def render_txt(report: dict) -> str:
         "=" * 60,
         f"Data/hora: {report['started_at']}",
         f"Alvo: {report['target']}",
+        *([f"URL web: {report['web_target']}"] if report.get("web_target") else []),
+        *([f"Metadados web: {json.dumps(report['web_metadata'], ensure_ascii=False)}"] if report.get("web_metadata") else []),
         f"Endereço analisado: {report.get('address', 'desconhecido')}",
         f"Modo: {report['mode']}",
         f"Estado: {report['status']}",
@@ -93,9 +105,16 @@ def render_txt(report: dict) -> str:
         ("banners", "BANNERS"),
         ("nse", "RESULTADOS NSE"),
         ("tools", "FERRAMENTAS OPCIONAIS"),
+        ("vulnerabilities", "ALERTAS E INDÍCIOS (NÃO CONFIRMADOS)"),
+        ("nuclei_findings", "ACHADOS NUCLEI"),
+        ("consolidated_findings", "ACHADOS CONSOLIDADOS"),
+        ("operational_errors", "ERROS OPERACIONAIS"),
+        ("confirmed_findings", "ACHADOS CONFIRMADOS"),
+        ("unconfirmed_findings", "INDÍCIOS NÃO CONFIRMADOS"),
+        ("recommendations", "RECOMENDAÇÕES"),
     ):
         lines.extend(["", title])
-        lines.append(json.dumps(report[key], ensure_ascii=False, indent=2))
+        lines.append(json.dumps(report.get(key, []), ensure_ascii=False, indent=2))
     if report.get("message"):
         lines.extend(["", report["message"]])
     lines.extend(["", "Resultados NSE são indícios, não confirmação de vulnerabilidade."])
